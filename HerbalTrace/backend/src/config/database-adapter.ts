@@ -414,7 +414,7 @@ export const initializeDatabase = async (): Promise<void> => {
       );
     `);
 
-    -- Create indexes for better query performance
+    // Create indexes for better query performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_complaints_farmer ON farmer_complaints(farmer_id);
       CREATE INDEX IF NOT EXISTS idx_complaints_status ON farmer_complaints(status);
