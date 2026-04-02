@@ -6,7 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database-adapter';
 import { logger } from '../utils/logger';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const router = Router();
  * POST /api/v1/complaints
  * Submit a new complaint (Farmer only)
  */
-router.post('/', authenticateToken, async (req: Request, res: Response) => {
+router.post('/', authenticate, async (req: Request, res: Response) => {
   try {
     const {
       complaintType,
@@ -104,7 +104,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
  * GET /api/v1/complaints
  * Get all complaints (Admin) or farmer's own complaints (Farmer)
  */
-router.get('/', authenticateToken, async (req: Request, res: Response) => {
+router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { status, type, priority, page = 1, limit = 20 } = req.query;
@@ -191,7 +191,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
  * GET /api/v1/complaints/:complaintId
  * Get specific complaint details
  */
-router.get('/:complaintId', authenticateToken, async (req: Request, res: Response) => {
+router.get('/:complaintId', authenticate, async (req: Request, res: Response) => {
   try {
     const { complaintId } = req.params;
     const user = (req as any).user;
@@ -233,7 +233,7 @@ router.get('/:complaintId', authenticateToken, async (req: Request, res: Respons
  * PATCH /api/v1/complaints/:complaintId/status
  * Update complaint status (Admin only)
  */
-router.patch('/:complaintId/status', authenticateToken, async (req: Request, res: Response) => {
+router.patch('/:complaintId/status', authenticate, async (req: Request, res: Response) => {
   try {
     const { complaintId } = req.params;
     const { status, resolutionNotes, assignedTo } = req.body;
@@ -308,7 +308,7 @@ router.patch('/:complaintId/status', authenticateToken, async (req: Request, res
  * GET /api/v1/complaints/stats/summary
  * Get complaint statistics (Admin only)
  */
-router.get('/stats/summary', authenticateToken, async (req: Request, res: Response) => {
+router.get('/stats/summary', authenticate, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
 
