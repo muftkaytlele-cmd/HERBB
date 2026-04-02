@@ -163,18 +163,24 @@ const startServer = async () => {
   let server: any = null;
   
   try {
-    // Initialize database schema
-    logger.info('Initializing database schema...');
-    const { initializeDatabase } = await import('./config/database-adapter');
-    await initializeDatabase();
-    
-    // Test database connection
-    logger.info('Testing database connection...');
-    const dbConnected = await testConnection();
-    if (dbConnected) {
-      logger.info('✅ Database connected successfully');
-    } else {
-      logger.warn('⚠️  Database connection failed - continuing without database (some features may be limited)');
+    // Initialize database schema, but do not fail the whole app if the database is unavailable.
+    let dbConnected = false;
+    try {
+      logger.info('Initializing database schema...');
+      const { initializeDatabase } = await import('./config/database-adapter');
+      await initializeDatabase();
+
+      logger.info('Testing database connection...');
+      dbConnected = await testConnection();
+
+      if (dbConnected) {
+        logger.info('✅ Database connected successfully');
+      } else {
+        logger.warn('⚠️  Database connection failed - continuing without database (some features may be limited)');
+      }
+    } catch (error: any) {
+      logger.warn(`⚠️  Database initialization failed: ${error.message}`);
+      logger.warn('⚠️  Continuing without database (some features may be limited)');
     }
 
     // Connect to Redis (optional) - Skip for now
