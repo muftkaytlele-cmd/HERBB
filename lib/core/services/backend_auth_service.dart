@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'storage_service.dart';
 
@@ -12,6 +14,7 @@ class BackendAuthService {
   static const String _refreshTokenKey = 'backendRefreshToken';
   static const String _usernameKey = 'backendUsername';
   static const String _passwordKey = 'backendPassword';
+  static const Duration _requestTimeout = Duration(seconds: 20);
 
   static String get apiBaseUrl =>
       StorageService.getSetting('apiBaseUrl', defaultValue: defaultApiBaseUrl);
@@ -43,10 +46,9 @@ class BackendAuthService {
     final password =
         (StorageService.getSetting(_passwordKey) as String?) ?? _defaultPassword;
 
-    final response = await http.post(
+    final response = await _postWithRetry(
       Uri.parse('$apiBaseUrl/api/v1/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
+      {'username': username, 'password': password},
     );
 
     if (response.statusCode != 200) {
@@ -74,10 +76,9 @@ class BackendAuthService {
 
   static Future<String?> _refreshAccessToken(String refreshToken) async {
     try {
-      final response = await http.post(
+      final response = await _postWithRetry(
         Uri.parse('$apiBaseUrl/api/v1/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refreshToken}),
+        {'refreshToken': refreshToken},
       );
 
       if (response.statusCode != 200) return null;
@@ -88,6 +89,38 @@ class BackendAuthService {
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<http.Response> _postWithRetry(
+    Uri uri,
+    Map<String, dynamic> body,
+  ) async {
+    const attempts = 3;
+    Object? lastError;
+
+    for (var i = 0; i < attempts; i++) {
+      try {
+        return await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(_requestTimeout);
+      } on SocketException catch (e) {
+        lastError = e;
+      } on TimeoutException catch (e) {
+        lastError = e;
+      } on http.ClientException catch (e) {
+        lastError = e;
+      }
+
+      if (i < attempts - 1) {
+        await Future.delayed(Duration(seconds: (i + 1) * 2));
+      }
+    }
+
+    throw Exception('Unable to reach backend auth service at $uri. ${lastError ?? 'Unknown network error'}');
   }
 
   static bool _isTokenUsable(dynamic token) {
