@@ -339,6 +339,16 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
     }
   }
 
+  Future<void> _clearTemporaryFormState() async {
+    try {
+      await _cacheBox.delete('temp_form_state');
+      await _cacheBox.delete('temp_image_paths');
+      print('DEBUG: Cleared temporary form/image cache');
+    } catch (e) {
+      print('DEBUG: Error clearing temporary form state: $e');
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -602,12 +612,15 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
         final decoded = jsonDecode(response.body);
         if ((response.statusCode == 200 || response.statusCode == 201) &&
             decoded['success'] == true) {
+          final txId = decoded['transactionId']?.toString();
           await collectionProvider.createCollectionEvent(
             farmerId: authProvider.currentUser!.id,
             species: payload['species'],
             latitude: double.parse(payload['latitude']),
             longitude: double.parse(payload['longitude']),
-            imagePaths: List<String>.from(payload['imagePaths'] ?? []),
+            imagePaths: List<String>.from(payload['images'] ?? []),
+            isSynced: true,
+            blockchainHash: txId,
             weight: double.tryParse(payload['quantity'].toString()),
             moisture: double.tryParse(payload['moisture']?.toString() ?? '0'),
             temperature: payload['temperature'],
@@ -685,6 +698,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
       final connectivity = await Connectivity().checkConnectivity();
       if (connectivity == ConnectivityResult.none) {
         await _offlineQueueBox.add(payload);
+        await _clearTemporaryFormState();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No internet. Submission queued!')),
         );
@@ -717,12 +731,15 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
 
         if ((response.statusCode == 200 || response.statusCode == 201) &&
             decoded['success'] == true) {
+          final txId = decoded['transactionId']?.toString();
           await collectionProvider.createCollectionEvent(
             farmerId: authProvider.currentUser!.id,
             species: _speciesController.text,
             latitude: _latitude!,
             longitude: _longitude!,
             imagePaths: _images.map((f) => f.path).toList(),
+            isSynced: true,
+            blockchainHash: txId,
             weight: double.tryParse(_weightController.text),
             moisture: double.tryParse(_moistureController.text),
             temperature: _temperature,
@@ -739,6 +756,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
             soilType: _selectedSoilType,
             notes: _notesController.text.isNotEmpty ? _notesController.text : null,
           );
+          await _clearTemporaryFormState();
           _showSuccessDialog(decoded['data']?['id'] ?? 'success');
         } else {
           print('❌ API Error: Status ${response.statusCode}');
@@ -758,6 +776,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
     } on SocketException catch (e) {
       print('🌐 Network error: $e');
       await _offlineQueueBox.add(payload);
+      await _clearTemporaryFormState();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Network issue. Submission saved offline.')),
@@ -766,6 +785,7 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
     } on TimeoutException catch (e) {
       print('⏱️ Request timeout: $e');
       await _offlineQueueBox.add(payload);
+      await _clearTemporaryFormState();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Request timed out. Submission saved offline.')),
