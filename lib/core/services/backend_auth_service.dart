@@ -6,7 +6,7 @@ class BackendAuthService {
   static const String defaultApiBaseUrl =
       'https://herbal-trace-production.up.railway.app';
   static const String _defaultUsername = 'admin';
-  static const String _defaultPassword = 'Admin@123';
+  static const String _defaultPassword = 'admin123';
 
   static const String _tokenKey = 'backendAuthToken';
   static const String _refreshTokenKey = 'backendRefreshToken';
