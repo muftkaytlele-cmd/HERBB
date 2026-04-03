@@ -167,20 +167,24 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     if (!validationResult.valid) {
       logger.warn(`Collection validation failed for farmer ${farmerId}:`, validationResult.violations);
       
-      // Create alert for violations
-      await db.prepare(`
-        INSERT INTO alerts (
-          alert_type, severity, entity_type, entity_id, title, message, details
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).runAsync(
-        'SEASONAL_WINDOW_VIOLATION', // Or determine type from violations
-        'HIGH',
-        'collection',
-        'pending',
-        'Collection Event Validation Failed',
-        validationResult.message || 'Validation errors detected',
-        JSON.stringify({ violations: validationResult.violations })
-      );
+      // Alert creation should never block the validation response.
+      try {
+        await db.prepare(`
+          INSERT INTO alerts (
+            alert_type, severity, entity_type, entity_id, title, message, details
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).runAsync(
+          'SEASONAL_WINDOW_VIOLATION', // Or determine type from violations
+          'HIGH',
+          'collection',
+          'pending',
+          'Collection Event Validation Failed',
+          validationResult.message || 'Validation errors detected',
+          JSON.stringify({ violations: validationResult.violations })
+        );
+      } catch (alertError) {
+        logger.warn('Failed to create validation alert (continuing response):', alertError);
+      }
 
       return res.status(400).json({
         success: false,
