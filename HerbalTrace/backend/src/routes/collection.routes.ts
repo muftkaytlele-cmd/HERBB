@@ -206,8 +206,13 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     const collectionId = `COL-${Date.now()}-${uuidv4().split('-')[0]}`;
 
     // Prepare collection event data
-    // Convert harvestDate (YYYY-MM-DD) to ISO 8601 timestamp format required by chaincode
-    const harvestDateISO = new Date(harvestDate + 'T00:00:00Z').toISOString();
+    // Ensure harvest_date is always stored as a full ISO timestamp.
+    const eventTimestampISO = clientTimestamp
+      ? new Date(clientTimestamp).toISOString()
+      : new Date().toISOString();
+    const harvestDateISO = harvestDate.includes('T')
+      ? new Date(harvestDate).toISOString()
+      : eventTimestampISO;
     
     // Normalize species name: remove parentheses portion (e.g., "Tulsi (Holy Basil)" -> "Tulsi")
     // This ensures species matches SeasonWindow records in blockchain
