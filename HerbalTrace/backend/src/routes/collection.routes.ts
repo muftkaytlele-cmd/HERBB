@@ -85,6 +85,7 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
       commonName,
       scientificName,
       quantity,
+      weight,
       unit,
       latitude,
       longitude,
@@ -103,7 +104,9 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     } = req.body;
 
     // Validate required fields
-    if (!species || !quantity || !latitude || !longitude || !harvestDate) {
+    const rawQuantity = quantity ?? weight;
+
+    if (!species || rawQuantity == null || !latitude || !longitude || !harvestDate) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: species, quantity, latitude, longitude, harvestDate'
@@ -120,21 +123,26 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     }
 
     const farmerId = user.userId;
-    const farmerName = user.fullName;
 
     // Get farmer's location data for zoneName/region
     const farmerData: any = await db.prepare(`
-      SELECT location_district, location_state 
+      SELECT user_id, full_name, location_district, location_state 
       FROM users 
       WHERE user_id = ?
     `).getAsync(farmerId);
+
+    const farmerName =
+      user.fullName ||
+      user.name ||
+      farmerData?.full_name ||
+      'Unknown Farmer';
 
     const zoneName = farmerData?.location_district && farmerData?.location_state
       ? `${farmerData.location_district}, ${farmerData.location_state}`
       : 'Unknown';
 
     // Parse and validate numeric values
-    const parsedQuantity = parseFloat(quantity);
+    const parsedQuantity = parseFloat(String(rawQuantity));
     const parsedLatitude = parseFloat(latitude);
     const parsedLongitude = parseFloat(longitude);
     const parsedAltitude = altitude ? parseFloat(altitude) : undefined;
@@ -235,25 +243,69 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
     };
 
     // Store in local database cache
-    await db.prepare(`
-      INSERT INTO collection_events_cache (
-        id, farmer_id, farmer_name, species, quantity, unit,
-        latitude, longitude, altitude, harvest_date, data_json, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).runAsync(
-      collectionId,
-      farmerId,
-      farmerName,
-      species,
-      parsedQuantity,
-      unit || 'kg',
-      parsedLatitude,
-      parsedLongitude,
-      parsedAltitude || null,
-      harvestDate,
-      JSON.stringify(collectionEvent),
-      'pending'
-    );
+    try {
+      await db.prepare(`
+        INSERT INTO collection_events_cache (
+          id, farmer_id, farmer_name, species, quantity, weight, unit,
+          latitude, longitude, altitude, harvest_date,
+          moisture, temperature, humidity,
+          common_name, scientific_name, harvest_method, part_collected,
+          latitude_accuracy, longitude_accuracy,
+          location_name, soil_type, notes, weather_condition, image_paths,
+          data_json, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).runAsync(
+        collectionId,
+        farmerId,
+        farmerName,
+        normalizedSpecies,
+        parsedQuantity,
+        parsedQuantity,
+        unit || 'kg',
+        parsedLatitude,
+        parsedLongitude,
+        parsedAltitude || null,
+        harvestDateISO,
+        typeof req.body.moisture === 'number' ? req.body.moisture : (req.body.moisture ? parseFloat(String(req.body.moisture)) : null),
+        typeof req.body.temperature === 'number' ? req.body.temperature : (req.body.temperature ? parseFloat(String(req.body.temperature)) : null),
+        typeof req.body.humidity === 'number' ? req.body.humidity : (req.body.humidity ? parseFloat(String(req.body.humidity)) : null),
+        commonName || species,
+        scientificName || null,
+        harvestMethod || 'manual',
+        partCollected || 'whole plant',
+        parsedAccuracy || null,
+        parsedAccuracy || null,
+        req.body.locationName || null,
+        soilType || null,
+        req.body.notes || null,
+        weatherConditions || null,
+        Array.isArray(images) ? images : [],
+        JSON.stringify(collectionEvent),
+        'pending'
+      );
+    } catch (fullInsertError: any) {
+      logger.warn('Full insert failed, falling back to legacy column set:', fullInsertError?.message || fullInsertError);
+
+      await db.prepare(`
+        INSERT INTO collection_events_cache (
+          id, farmer_id, farmer_name, species, quantity, unit,
+          latitude, longitude, altitude, harvest_date, data_json, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).runAsync(
+        collectionId,
+        farmerId,
+        farmerName,
+        normalizedSpecies,
+        parsedQuantity,
+        unit || 'kg',
+        parsedLatitude,
+        parsedLongitude,
+        parsedAltitude || null,
+        harvestDateISO,
+        JSON.stringify(collectionEvent),
+        'pending'
+      );
+    }
 
     logger.info(`Collection event cached: ${collectionId} by farmer ${farmerId}`);
 
@@ -279,12 +331,21 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
       logger.info(`Collection synced to blockchain: ${collectionId}, TX: ${blockchainTxId}`);
     } catch (blockchainError: any) {
       logger.error(`Blockchain sync failed for ${collectionId}:`, blockchainError);
-      // Store error but don't fail the request
+      // Keep as pending when blockchain infra (wallet/network) is unavailable.
+      // Record the error for observability without marking the data path as failed.
+      const errorMessage = String(blockchainError?.message || blockchainError || 'Blockchain sync failed');
+      const shouldStayPending =
+        errorMessage.toLowerCase().includes('wallet') ||
+        errorMessage.toLowerCase().includes('network/wallet') ||
+        errorMessage.toLowerCase().includes('identity') ||
+        errorMessage.toLowerCase().includes('gateway') ||
+        errorMessage.toLowerCase().includes('connection profile');
+
       await db.prepare(`
         UPDATE collection_events_cache
         SET sync_status = ?, error_message = ?
         WHERE id = ?
-      `).runAsync('failed', blockchainError.message, collectionId);
+      `).runAsync(shouldStayPending ? 'pending' : 'failed', errorMessage, collectionId);
     }
 
     res.status(201).json({
