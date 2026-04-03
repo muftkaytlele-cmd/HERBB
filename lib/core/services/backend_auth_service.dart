@@ -6,6 +6,8 @@ import 'storage_service.dart';
 
 class BackendAuthService {
   static const String defaultApiBaseUrl =
+  'https://herbb-production.up.railway.app';
+  static const String _legacyApiBaseUrl =
       'https://herbal-trace-production.up.railway.app';
   static const String _defaultUsername = 'admin';
   static const String _defaultPassword = 'admin123';
@@ -16,8 +18,19 @@ class BackendAuthService {
   static const String _passwordKey = 'backendPassword';
   static const Duration _requestTimeout = Duration(seconds: 20);
 
-  static String get apiBaseUrl =>
-      StorageService.getSetting('apiBaseUrl', defaultValue: defaultApiBaseUrl);
+  static String get apiBaseUrl {
+    final configured =
+        StorageService.getSetting('apiBaseUrl', defaultValue: defaultApiBaseUrl);
+
+    if (configured is String && configured.trim().isNotEmpty) {
+      if (configured == _legacyApiBaseUrl) {
+        return defaultApiBaseUrl;
+      }
+      return configured;
+    }
+
+    return defaultApiBaseUrl;
+  }
 
   static Future<String> getValidToken() async {
     final existingToken =
