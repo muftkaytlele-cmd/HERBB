@@ -4,11 +4,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/collection_event.dart';
 import 'storage_service.dart';
+import 'backend_auth_service.dart';
 
 class SyncService {
-  static const String apiBaseUrl = 'https://herbal-trace-production.up.railway.app';
-  static const String bearerToken = 
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU';
+  static const String apiBaseUrl = BackendAuthService.defaultApiBaseUrl;
 
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
@@ -81,17 +80,41 @@ class SyncService {
 
   Future<bool> _syncEvent(CollectionEvent event) async {
     try {
+      final token = await BackendAuthService.getValidToken();
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
+
+      final payload = {
+        'species': event.species,
+        'quantity': event.weight ?? 0,
+        'unit': 'kg',
+        'latitude': event.latitude,
+        'longitude': event.longitude,
+        'altitude': event.altitude,
+        'accuracy': event.latitudeAccuracy,
+        'harvestDate': event.timestamp.toIso8601String().split('T')[0],
+        'images': event.imagePaths,
+        'moisture': event.moisture,
+        'temperature': event.temperature,
+        'humidity': event.humidity,
+        'weatherConditions': event.weatherCondition,
+        'commonName': event.commonName,
+        'scientificName': event.scientificName,
+        'harvestMethod': event.harvestMethod,
+        'partCollected': event.partCollected,
+        'locationName': event.locationName,
+        'soilType': event.soilType,
+        'notes': event.notes,
+      };
 
       final response = await http
           .post(
             Uri.parse('$apiUrl/api/v1/collections'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $bearerToken',
+              'Authorization': 'Bearer $token',
             },
-            body: json.encode(event.toJson()),
+            body: json.encode(payload),
           )
           .timeout(const Duration(seconds: 30));
 
@@ -112,6 +135,7 @@ class SyncService {
 
   Future<Map<String, dynamic>?> fetchProvenanceData(String batchId) async {
     try {
+      final token = await BackendAuthService.getValidToken();
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
 
@@ -129,7 +153,7 @@ class SyncService {
         Uri.parse('$apiUrl/api/v1/provenance/$batchId'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $bearerToken',
+          'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 30));
 
@@ -154,6 +178,7 @@ class SyncService {
 
   Future<void> recordScan(String batchId, String userId) async {
     try {
+      final token = await BackendAuthService.getValidToken();
       final apiUrl =
           StorageService.getSetting('apiBaseUrl', defaultValue: apiBaseUrl);
 
@@ -162,7 +187,7 @@ class SyncService {
             Uri.parse('$apiUrl/api/v1/scans'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $bearerToken',
+              'Authorization': 'Bearer $token',
             },
             body: json.encode({
               'batchId': batchId,

@@ -27,12 +27,14 @@ class CollectionProvider with ChangeNotifier {
         unit: 'kg',
         collectionDate: DateTime.now().toIso8601String().split('T')[0],
         location: '${latitude.toStringAsFixed(6)},${longitude.toStringAsFixed(6)}',
+        latitude: latitude,
+        longitude: longitude,
         extra: {
           'moisture': moisture,
           'temperature': temperature,
           'humidity': humidity,
           'farmerId': farmerId,
-          'imagePaths': imagePaths,
+          'images': imagePaths,
         },
       );
 

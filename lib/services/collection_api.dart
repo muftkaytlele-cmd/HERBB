@@ -1,15 +1,9 @@
 // lib/services/collection_api.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../core/services/backend_auth_service.dart';
 
 class CollectionApi {
-  // Only domain kept here as per earlier comment idea — full endpoint used in function
-  static const String baseUrl = "https://herbal-trace-production.up.railway.app";
-
-  // Hardcoded token (as requested)
-  static const String _bearerToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU";
-
   /// Creates a collection record.
   /// Returns event id string if available on success, otherwise throws.
   static Future<String?> createCollection({
@@ -18,9 +12,12 @@ class CollectionApi {
     required String unit,
     required String collectionDate, // YYYY-MM-DD
     required String location,
+    double? latitude,
+    double? longitude,
     Map<String, dynamic>? extra,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/collections');
+    final token = await BackendAuthService.getValidToken();
+    final uri = Uri.parse('${BackendAuthService.apiBaseUrl}/api/v1/collections');
 
     final body = {
       "species": herbType,
@@ -28,6 +25,8 @@ class CollectionApi {
       "unit": unit,
       "harvestDate": collectionDate,
       "location": location,
+      if (latitude != null) "latitude": latitude,
+      if (longitude != null) "longitude": longitude,
     };
 
     // Merge extras if present (moisture, temperature, etc.)
@@ -35,11 +34,19 @@ class CollectionApi {
       body.addAll(extra.map((k, v) => MapEntry(k, v)));
     }
 
+    // Normalize app-side aliases to backend expected keys.
+    if (body.containsKey('imagePaths') && !body.containsKey('images')) {
+      body['images'] = body.remove('imagePaths');
+    }
+    if (body.containsKey('weatherCondition') && !body.containsKey('weatherConditions')) {
+      body['weatherConditions'] = body.remove('weatherCondition');
+    }
+
     final response = await http.post(
       uri,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_bearerToken',
+        'Authorization': 'Bearer $token',
       },
       body: jsonEncode(body),
     );

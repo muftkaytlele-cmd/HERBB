@@ -1,10 +1,9 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'backend_auth_service.dart';
 
 class ComplaintService {
-  static const String apiBaseUrl = 'https://herbal-trace-production.up.railway.app';
-  static const String bearerToken = 
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU';
+  static String get apiBaseUrl => BackendAuthService.apiBaseUrl;
 
   /// Submit a complaint to the backend
   Future<Map<String, dynamic>> submitComplaint({
@@ -16,6 +15,7 @@ class ComplaintService {
     required String description,
   }) async {
     try {
+      final token = await BackendAuthService.getValidToken();
       print('DEBUG ComplaintService: Submitting complaint...');
       
       final payload = {
@@ -35,7 +35,7 @@ class ComplaintService {
         Uri.parse('$apiBaseUrl/api/v1/complaints'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $bearerToken',
+          'Authorization': 'Bearer $token',
         },
         body: json.encode(payload),
       ).timeout(const Duration(seconds: 30));
@@ -71,10 +71,11 @@ class ComplaintService {
   /// Get all complaints for a user (optional - for future use)
   Future<Map<String, dynamic>> getUserComplaints(String userId) async {
     try {
+      final token = await BackendAuthService.getValidToken();
       final response = await http.get(
         Uri.parse('$apiBaseUrl/api/v1/complaints/user/$userId'),
         headers: {
-          'Authorization': 'Bearer $bearerToken',
+          'Authorization': 'Bearer $token',
         },
       ).timeout(const Duration(seconds: 30));
 

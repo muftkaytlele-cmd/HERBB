@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/weather_service.dart';
+import '../../../core/services/backend_auth_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/collection_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -214,16 +215,25 @@ class _NewCollectionScreenState extends State<NewCollectionScreen> {
         "latitude": _latitude!.toString(),
         "longitude": _longitude!.toString(),
         "location":
-        "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}"
+        "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}",
+        "images": _images.map((f) => f.path).toList(),
+        "temperature": _temperature,
+        "humidity": _humidity,
+        "weatherConditions": {
+          "temperature": _temperature,
+          "humidity": _humidity,
+        },
+        "moisture": double.tryParse(_moistureController.text),
+        "harvestMethod": "manual",
+        "partCollected": "whole plant"
       };
 
+      final token = await BackendAuthService.getValidToken();
       final response = await http.post(
-        Uri.parse(
-            'https://herbal-trace-production.up.railway.app/api/v1/collections'),
+        Uri.parse('${BackendAuthService.apiBaseUrl}/api/v1/collections'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization':
-          'Bearer YOUR_TOKEN_HERE', // Replace with dynamic token if needed
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode(payload),
       );

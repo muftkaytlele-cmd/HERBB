@@ -53,7 +53,6 @@ void main() {
         'imagePaths': ['path/to/image1.jpg', 'path/to/image2.jpg'],
         'weight': 15.0,
         'moisture': 12.5,
-        'quality': 'Premium',
         'notes': 'Good quality harvest',
         'timestamp': '2024-01-01T10:00:00.000Z',
         'isSynced': true,
@@ -66,7 +65,6 @@ void main() {
       expect(event.species, 'Neem');
       expect(event.weight, 15.0);
       expect(event.moisture, 12.5);
-      expect(event.quality, 'Premium');
       expect(event.isSynced, true);
       expect(event.blockchainHash, 'abc123hash');
       expect(event.imagePaths.length, 2);

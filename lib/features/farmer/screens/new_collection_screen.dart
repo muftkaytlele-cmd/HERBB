@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/backend_auth_service.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/locale_provider.dart';
@@ -587,11 +588,12 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
     for (var key in keys) {
       final payload = Map<String, dynamic>.from(_offlineQueueBox.get(key));
       try {
+        final token = await BackendAuthService.getValidToken();
         final response = await http.post(
-          Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
+          Uri.parse('${BackendAuthService.apiBaseUrl}/api/v1/collections'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode(payload),
         );
@@ -659,10 +661,10 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
       "altitude": _altitude,
       "location":
       "Lat: ${_latitude!.toStringAsFixed(6)}, Lon: ${_longitude!.toStringAsFixed(6)}",
-      "imagePaths": _images.map((f) => f.path).toList(),
+      "images": _images.map((f) => f.path).toList(),
       "temperature": _temperature,
       "humidity": _humidity,
-      "weatherCondition": _selectedWeatherCondition,
+      "weatherConditions": _selectedWeatherCondition,
       "moisture": double.tryParse(_moistureController.text),
       "commonName": _commonNameController.text.isNotEmpty ? _commonNameController.text : null,
       "scientificName": _scientificNameController.text.isNotEmpty ? _scientificNameController.text : null,
@@ -687,11 +689,12 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
         );
         _showSuccessDialog('queued');
       } else {
+        final token = await BackendAuthService.getValidToken();
         final response = await http.post(
-          Uri.parse('https://herbal-trace-production.up.railway.app/api/v1/collections'),
+          Uri.parse('${BackendAuthService.apiBaseUrl}/api/v1/collections'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbi0wMDEiLCJ1c2VybmFtZSI6ImFkbWluIiwiZW1haWwiOiJhZG1pbkBoZXJiYWx0cmFjZS5jb20iLCJmdWxsTmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwib3JnTmFtZSI6IkhlcmJhbFRyYWNlIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzY1MjM1MDU2LCJleHAiOjE3NjUzMjE0NTZ9.obOcf9rK86hhrf4Xqq_4MvKoM20qKICNI6TXfblsKwU',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode(payload),
         );
