@@ -64,9 +64,26 @@ class ValidationService {
     { species: 'Brahmi', maxQuantityPerDay: 30, maxQuantityPerMonth: 300, maxQuantityPerYear: 3000, unit: 'kg' },
   ];
 
-  // Demo geofence zones (protected areas) - relaxed for testing
-  // In production, these would be properly enforced
-  private geofenceZones: GeofenceZone[] = [];
+  // Demo geofence zones (protected areas)
+  private geofenceZones: GeofenceZone[] = [
+    {
+      name: 'Uttarakhand Himalayan Zone',
+      species: ['Tulsi', 'Brahmi', 'Ashwagandha'],
+      boundaries: { minLat: 28.5, maxLat: 31.5, minLng: 77.5, maxLng: 81.0 },
+      altitude: { min: 300, max: 3000 }
+    },
+    {
+      name: 'Kerala Protected Forest',
+      species: ['Ashwagandha', 'Brahmi', 'Tulsi'],
+      boundaries: { minLat: 8.0, maxLat: 12.8, minLng: 74.8, maxLng: 77.4 },
+      altitude: { min: 500, max: 2500 }
+    },
+    {
+      name: 'Karnataka Biodiversity Zone',
+      species: ['Turmeric', 'Neem', 'Senna'],
+      boundaries: { minLat: 11.5, maxLat: 18.5, minLng: 74.0, maxLng: 78.5 }
+    }
+  ];
 
   /**
    * Validate if harvest date falls within allowed season window
