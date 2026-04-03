@@ -17,6 +17,9 @@ const router = Router();
 router.post('/', authenticate, async (req: Request, res: Response) => {
   try {
     const {
+      userId,
+      userName,
+      userEmail,
       complaintType,
       subject,
       description,
@@ -47,39 +50,64 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       WHERE user_id = ?
     `).getAsync(user.userId);
 
-    if (!farmer) {
-      return res.status(404).json({
-        success: false,
-        message: 'Farmer not found',
-      });
+    const farmerInfo = farmer || {
+      user_id: user.userId || userId || 'unknown',
+      full_name: userName || user.name || 'Unknown Farmer',
+      phone: null,
+      email: userEmail || user.email || null,
+    };
+
+    try {
+      // Preferred table used by full backend schema
+      await db.prepare(`
+        INSERT INTO farmer_complaints (
+          complaint_id, farmer_id, farmer_name, farmer_phone, farmer_email,
+          complaint_type, subject, description, priority, status,
+          related_collection_id, related_batch_id, attachments, location,
+          submitted_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).runAsync(
+        complaintId,
+        farmerInfo.user_id,
+        farmerInfo.full_name,
+        farmerInfo.phone,
+        farmerInfo.email,
+        complaintType,
+        subject,
+        description,
+        priority || 'MEDIUM',
+        relatedCollectionId,
+        relatedBatchId,
+        attachments ? JSON.stringify(attachments) : null,
+        location,
+        user.userId || userId || farmerInfo.user_id
+      );
+    } catch (insertError: any) {
+      const message = String(insertError?.message || '').toLowerCase();
+      const missingFarmerComplaintsTable =
+        message.includes('farmer_complaints') &&
+        (message.includes('does not exist') || message.includes('no such table') || message.includes('unknown table'));
+
+      if (!missingFarmerComplaintsTable) {
+        throw insertError;
+      }
+
+      // Fallback for lightweight Railway schema created via railway_migration.sql
+      await db.prepare(`
+        INSERT INTO complaints (
+          farmer_id, complaint_type, location, description, status, images, timestamp, resolved, resolution_notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP, FALSE, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).runAsync(
+        farmerInfo.user_id,
+        complaintType,
+        location || null,
+        `${subject}: ${description}`,
+        attachments ? JSON.stringify(attachments) : null,
+        null
+      );
     }
 
-    // Insert complaint
-    await db.prepare(`
-      INSERT INTO farmer_complaints (
-        complaint_id, farmer_id, farmer_name, farmer_phone, farmer_email,
-        complaint_type, subject, description, priority, status,
-        related_collection_id, related_batch_id, attachments, location,
-        submitted_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).runAsync(
-      complaintId,
-      farmer.user_id,
-      farmer.full_name,
-      farmer.phone,
-      farmer.email,
-      complaintType,
-      subject,
-      description,
-      priority || 'MEDIUM',
-      relatedCollectionId,
-      relatedBatchId,
-      attachments ? JSON.stringify(attachments) : null,
-      location,
-      user.userId
-    );
-
-    logger.info(`Complaint submitted: ${complaintId} by farmer ${farmer.user_id}`);
+    logger.info(`Complaint submitted: ${complaintId} by farmer ${farmerInfo.user_id}`);
 
     res.status(201).json({
       success: true,
