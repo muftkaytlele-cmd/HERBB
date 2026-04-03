@@ -11,6 +11,10 @@ dotenv.config();
 
 // Import database
 import { testConnection } from './config/database-adapter';
+import {
+  initializeDatabase as initializeLegacyDatabase,
+  testConnection as testLegacyConnection,
+} from './config/database';
 // import { connectRedis } from './config/redis'; // Disabled for hackathon
 import { logger } from './utils/logger';
 
@@ -163,6 +167,23 @@ const startServer = async () => {
   let server: any = null;
   
   try {
+    // Initialize legacy SQLite database for routes still using config/database.
+    // This keeps auth and other legacy endpoints functional while PostgreSQL is primary.
+    let legacyDbConnected = false;
+    try {
+      logger.info('Initializing legacy SQLite database schema...');
+      initializeLegacyDatabase();
+      legacyDbConnected = await testLegacyConnection();
+
+      if (legacyDbConnected) {
+        logger.info('✅ Legacy SQLite database connected successfully');
+      } else {
+        logger.warn('⚠️  Legacy SQLite database connection failed (legacy endpoints may be limited)');
+      }
+    } catch (error: any) {
+      logger.warn(`⚠️  Legacy SQLite initialization failed: ${error.message}`);
+    }
+
     // Initialize database schema, but do not fail the whole app if the database is unavailable.
     let dbConnected = false;
     try {

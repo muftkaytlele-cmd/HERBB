@@ -354,8 +354,26 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
+    if (!user.password_hash || typeof user.password_hash !== 'string') {
+      logger.warn(`Login rejected due to invalid password hash for user: ${user.user_id || user.username}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
     // Verify password
-    const isMatch = bcrypt.compareSync(password, user.password_hash);
+    let isMatch = false;
+    try {
+      isMatch = bcrypt.compareSync(password, user.password_hash);
+    } catch (compareError: any) {
+      logger.warn(`Password comparison failed for user ${user.user_id || user.username}: ${compareError.message}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,
