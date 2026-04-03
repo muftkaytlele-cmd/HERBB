@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -697,12 +698,23 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
             'Authorization': 'Bearer $token',
           },
           body: jsonEncode(payload),
-        );
+        ).timeout(const Duration(seconds: 20));
 
         print('✅ Response Status: ${response.statusCode}');
         print('📄 Response Body: ${response.body}');
 
-        final decoded = jsonDecode(response.body);
+        Map<String, dynamic> decoded = {};
+        if (response.body.isNotEmpty) {
+          try {
+            final parsed = jsonDecode(response.body);
+            if (parsed is Map<String, dynamic>) {
+              decoded = parsed;
+            }
+          } catch (_) {
+            // Keep decoded empty; we'll show status/body fallback below.
+          }
+        }
+
         if ((response.statusCode == 200 || response.statusCode == 201) &&
             decoded['success'] == true) {
           await collectionProvider.createCollectionEvent(
@@ -731,16 +743,40 @@ class _NewCollectionScreenState extends State<NewCollectionScreen>
         } else {
           print('❌ API Error: Status ${response.statusCode}');
           print('❌ Error Response: ${response.body}');
-          throw Exception('API Error: ${response.statusCode}');
+
+          final serverMessage = decoded['message']?.toString();
+          final fallbackBody = response.body.trim();
+          final safeBody = fallbackBody.isNotEmpty ? fallbackBody : 'No response body';
+
+          throw Exception(
+            serverMessage != null && serverMessage.isNotEmpty
+                ? serverMessage
+                : 'Server error ${response.statusCode}: $safeBody',
+          );
         }
       }
-    } catch (e) {
-      print('💥 Exception caught: $e');
+    } on SocketException catch (e) {
+      print('🌐 Network error: $e');
       await _offlineQueueBox.add(payload);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Submission failed. Saved offline.')),
+        const SnackBar(content: Text('Network issue. Submission saved offline.')),
       );
       _showSuccessDialog('queued');
+    } on TimeoutException catch (e) {
+      print('⏱️ Request timeout: $e');
+      await _offlineQueueBox.add(payload);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Request timed out. Submission saved offline.')),
+      );
+      _showSuccessDialog('queued');
+    } catch (e) {
+      print('💥 Exception caught: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: ${e.toString().replaceFirst('Exception: ', '')}')),
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
